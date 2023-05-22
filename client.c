@@ -57,3 +57,34 @@ if (msgsnd(msgid, &message, sizeof(message.mtext), 0) == -1) {
     }
 
 printf("Client: Request sent to the server\n");
+
+//Kerkesa 4
+// Wait for responses from the server
+    if (msgrcv(msgid, &message, sizeof(message.mtext), CLIENT_MSG_TYPE, 0) == -1) {
+        perror("Error receiving response from server");
+        exit(1);
+    }
+
+    printf("Client: Received response from server: %s\n", message.mtext);
+
+//Kerkesa 5
+    // Gracefully disconnect from the server
+    message.mtype = SERVER_MSG_TYPE;
+    snprintf(message.mtext, MAX_MSG_SIZE, "Disconnect request from client %d", msgid);
+    if (msgsnd(msgid, &message, sizeof(message.mtext), 0) == -1) {
+        perror("Error sending disconnect request to the server");
+        exit(1);
+    }
+
+    printf("Client: Disconnect request sent to the server\n");
+
+    // Clean up the message queue
+    if (msgctl(msgid, IPC_RMID, NULL) == -1) {
+        perror("Error removing message queue");
+        exit(1);
+    }
+
+    printf("Client: Message queue removed\n");
+
+    return 0;
+}
