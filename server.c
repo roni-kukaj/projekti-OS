@@ -11,24 +11,33 @@
 #include <sys/types.h>
 #include <pthread.h>
 #include <sys/msg.h>
+#include <string.h>
 
-#define BUFFER_SIZE 256 // Madhesia e buffer per lexim mesazhesh
+#define BUFFER_SIZE 128 // Madhesia e buffer per lexim mesazhesh
 #define MAX_CLIENTS_NR 50
 int count = 0;
-
-key_t server_id = 1234;
-pthread_t tid[MAX_CLIENTS_NR];
 
 typedef struct { // Connection file descriptor
     int client_id; // Id unike e klientit
     int message_queue_id; // Message Queue korresponduese e klientit
-    int message_queue_key;
 } client_t;
 
-struct message_buffer{
-    int request_type;
+typedef struct{
+    long mtype; // Message type
+    client_t client;
+} Connection_Request;
+
+struct message_buffer {
+    long request_type;
     char data_payload[BUFFER_SIZE];
-} message;
+};
+char* pergjigju_klientit(const char kerkesa[]);
+void shto_klient(client_t *client);
+void largo_klient(int clientId);
+
+
+key_t server_id = 1234;
+pthread_t tid[MAX_CLIENTS_NR];
 
 // Kerkesa 1 - Initialize a message queue for accepting connections from clients
 
@@ -66,38 +75,57 @@ void largo_klient(int clientId){
     pthread_mutex_unlock(&mutex_client); // Dalje nga critical section pas largimit
 }
 
-
 // Kerkesa 3 - For each connected client, spawn a new thread that listens for messages from that client 
 //              and processes them
 
 // Funksioni i cili ekzektuohet kur krijohet nje thread i ri - vjen request nga klienti
-void *thread_function(client_t *klienti){
+void* thread_function(void* arg){
+    client_t* klienti = (client_t*) arg;
+    printf("Klienti - %d\n", klienti->client_id);
     shto_klient(klienti);
+    klienti->message_queue_id = msgget(klienti->client_id, 0666|IPC_CREAT);
+    printf("Queue - %d\n", klienti->message_queue_id);
+    struct message_buffer message_pranim;
+    struct message_buffer message_dergim;
     while(1){
-        if(msgrcv(klienti->message_queue_id, &message, sizeof(message)+1, 1, 0) == -1) continue;
-        if(message.request_type == 0){
+        printf("Edhe qetu mir osht\n");
+        msgrcv(klienti->message_queue_id, &message_pranim, sizeof(message_pranim.data_payload)+1, 1, 0);
+        printf("Kerkesa - %s\n", message_pranim.data_payload);
+
+        char* pergjigja = pergjigju_klientit(message_pranim.data_payload);
+        message_dergim.request_type = 1;
+        strcpy(message_dergim.data_payload, pergjigja);
+        msgsnd(klienti->message_queue_id, &message_dergim, strlen(message_dergim.data_payload) + 1, 0);
+        sleep(1);
+        if (strcmp(message_pranim.data_payload, "0") == 0) {
             largo_klient(klienti->client_id);
-            pthread_exit(NULL);
+            msgctl(klienti->message_queue_id, IPC_RMID, NULL);
             break;
         }
-        char *pergjigja = pergjigju_klientit(message.request_type);
-        msgsnd(klienti->message_queue_id, *pergjigja, sizeof(*pergjigja) + 1, 0);
     }
+    pthread_exit(NULL);
 }
 
 // Funksion i cili i pergjigjet klientit, varesisht nga kerkesa
-char *pergjigju_klientit(int kerkesa){
-    char *str = malloc(BUFFER_SIZE);
-    if(kerkesa == 1){
-        *str = "Hello, 1";
+char* pergjigju_klientit(const char kerkesa[]){ // TODO Rewrite this thing
+    if (strcmp(kerkesa, "1") == 0) {
+        return "Happy Birthday";
     }
-    else if(kerkesa == 2){
-        *str = "Hello, 2";
+    else if (strcmp(kerkesa, "2") == 0) {
+        return "Nice day";
     }
-    else if(kerkesa == 3){
-        *str = "Hello, 3";
+    else if (strcmp(kerkesa, "3") == 0) {
+        return "How are you";
     }
-    return *str;
+    else if (strcmp(kerkesa, "4") == 0) {
+        return "Hello there";
+    } 
+    else if(strcmp(kerkesa, "0") == 0){
+        return "exit";
+    }
+    else {
+        return "Unknown";
+    }
 }
 
 // Kerkesa 4 - Each message from a client should contain a request type and data payload.
@@ -108,13 +136,17 @@ char *pergjigju_klientit(int kerkesa){
 //              of connected clients and the corresponding thread should be terminated.
 
 int main(){
-    int msgid = msgget(server_id, 0666|IPC_CREAT);
-    client_t client;
+    int msgid = msgget(server_id, 0666|IPC_CREAT); // Krijimi i nje message queue me anen e se ciles behet lidhja me server
+    Connection_Request conn_request;
     while(1){
-        if(count >= MAX_CLIENTS_NR) continue;
-        if(msgrcv(msgid, &client, sizeof(client) + 1, 1, 0) == -1) continue;
-        client.message_queue_id = msgget(client.message_queue_key, 0666|IPC_CREAT);
-        pthread_create(&(tid[count]), NULL, &thread_function, &client);
+        if(count >= MAX_CLIENTS_NR){
+            continue;
+        }
+        msgrcv(msgid, &conn_request, BUFFER_SIZE, 1, 0);
+        printf("Hi3, %ld\n", conn_request.mtype);
+
+        client_t client = conn_request.client;
+        pthread_create(&(tid[count]), NULL, *thread_function, &client);
         count += 1;
     }
     msgctl(msgid, IPC_RMID, NULL);

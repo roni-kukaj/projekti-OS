@@ -7,11 +7,11 @@
       "request": "launch",
       "args": [],
       "stopAtEntry": false,
-      "externalConsole": true,
-      "cwd": "c:/Users/Getuar/Documents/GitHub/projekti-OS",
-      "program": "c:/Users/Getuar/Documents/GitHub/projekti-OS/build/Debug/outDebug",
+      "externalConsole": false,
+      "cwd": "/Users/roo/Desktop/University/Semester 4/Operating Systems/Ushtrime Numerike/projekti-OS",
+      "program": "/Users/roo/Desktop/University/Semester 4/Operating Systems/Ushtrime Numerike/projekti-OS/build/Debug/outDebug",
       "MIMode": "gdb",
-      "miDebuggerPath": "C:/MinGW/bin/gdb.exe",
+      "miDebuggerPath": "gdb",
       "setupCommands": [
         {
           "description": "Enable pretty-printing for gdb",
